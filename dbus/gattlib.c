@@ -211,7 +211,7 @@ gatt_connection_t *gattlib_connect(void* adapter, const char *dst, unsigned long
 	// Get list of objects belonging to Device Manager
 	device_manager = get_device_manager_from_adapter(conn_context->adapter);
 	conn_context->dbus_objects = g_dbus_object_manager_get_objects(device_manager);
-
+	while(!org_bluez_device1_get_services_resolved(device)) sleep(1);
 	return connection;
 
 FREE_DEVICE:
