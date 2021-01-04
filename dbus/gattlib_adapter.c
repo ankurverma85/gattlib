@@ -289,6 +289,9 @@ int gattlib_adapter_scan_enable_with_filter(void *adapter, uuid_t **uuid_list, i
 		gattlib_adapter->timeout_id = g_timeout_add_seconds(timeout, stop_scan_func, gattlib_adapter->scan_loop);
 	}
 	g_main_loop_run(gattlib_adapter->scan_loop);
+	// At this point, either the timeout expired (and automatically was removed) or scan_disable was called, removing the timer.
+	gattlib_adapter->timeout_id = 0;
+
 	// Note: The function only resumes when loop timeout as expired or g_main_loop_quit has been called.
 
 	g_signal_handler_disconnect(G_DBUS_OBJECT_MANAGER(device_manager), added_signal_id);
@@ -315,17 +318,22 @@ int gattlib_adapter_scan_enable(void* adapter, gattlib_discovered_device_t disco
 int gattlib_adapter_scan_disable(void* adapter) {
 	struct gattlib_adapter *gattlib_adapter = adapter;
 
-	if (gattlib_adapter->scan_loop && g_main_loop_is_running(gattlib_adapter->scan_loop)) {
+	if (gattlib_adapter->scan_loop) {
 		GError *error = NULL;
 
 		org_bluez_adapter1_call_stop_discovery_sync(gattlib_adapter->adapter_proxy, NULL, &error);
 		// Ignore the error
 
 		// Remove timeout
-		g_source_remove(gattlib_adapter->timeout_id);
+		if (gattlib_adapter->timeout_id) {
+			g_source_remove(gattlib_adapter->timeout_id);
+			gattlib_adapter->timeout_id = 0;
+		}
 
 		// Ensure the scan loop is quit
-		g_main_loop_quit(gattlib_adapter->scan_loop);
+		if (g_main_loop_is_running(gattlib_adapter->scan_loop)) {
+			g_main_loop_quit(gattlib_adapter->scan_loop);
+		}
 		g_main_loop_unref(gattlib_adapter->scan_loop);
 		gattlib_adapter->scan_loop = NULL;
 	}
